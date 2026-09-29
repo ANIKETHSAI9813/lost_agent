@@ -1,10 +1,21 @@
 # Lost-Deal Autopsy Agent
 
-A hackathon prototype: a sales agent with ONE shared memory of a team's past
-deals. During a live deal it (1) keeps a live win-probability score that
+A hackathon prototype built by a three-member team: a sales agent with ONE shared memory of a team's past deals. During a live deal it (1) keeps a live win-probability score that
 updates on every call/email/CRM event, (2) explains each change in one line
 using real counts from team history, and (3) drafts a follow-up using language
 that worked in past deals that survived the same objection.
+
+
+## Team Contributions
+
+| Member | Contribution |
+|---|---|
+| **C. Aniketh Sai** | Backend architecture, Hindsight shared-memory integration, data ingestion/recall, and API pipeline |
+| **K.V.K Sreekar** | Frontend dashboard, live deal interaction flow, score/pattern visualizations, and session-based UI behavior |
+| **D. Srikar Reddy** | LLM/Groq integration, signal extraction and validation, testing/evaluation scripts, and release verification |
+
+The three members jointly worked on the overall architecture, integration, debugging, and final validation of the prototype.
+
 
 The authority is `SPEC.md` plus the five files in `seed/`. Nothing in this
 README overrides them; where the README and SPEC disagree, the SPEC wins.
