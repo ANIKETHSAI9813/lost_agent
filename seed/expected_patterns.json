@@ -1,0 +1,12 @@
+{
+  "_comment": "Ground truth for unit tests. Counts must match what the memory layer computes from deals.json.",
+  "totals": {"deals": 30, "lost": 22, "won": 8},
+  "patterns": [
+    {"key": "objection:budget_freeze@Evaluation", "total": 10, "lost": 6, "won": 4},
+    {"key": "objection:champion_left@Evaluation", "total": 6, "lost": 5, "won": 1},
+    {"key": "competitor:Acme+objection:no_exec_sponsor", "total": 5, "lost": 4, "won": 1},
+    {"key": "competitor:Acme", "total": 7, "lost": 6, "won": 1},
+    {"key": "recovery:positive_reply_after_followup@budget_freeze", "total": 5, "lost": 1, "won": 4}
+  ],
+  "winning_responses_for_budget_freeze": ["phased_rollout","cost_of_delay","pilot_first","cfo_one_pager"]
+}

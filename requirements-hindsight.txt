@@ -1,0 +1,7 @@
+# Memory backend (SPEC 6). Optional: the app falls back to LocalMemory
+# with a visible badge when this is missing or unreachable.
+#
+# NOTE: SPEC 6 asks for Python 3.11/3.12. This machine only has 3.14, so
+# this package may have no matching wheel. The step-3 spike verifies the
+# install and logs the outcome; the app never assumes it is present.
+hindsight-client

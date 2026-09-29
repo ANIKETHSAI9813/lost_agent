@@ -1,0 +1,25 @@
+{
+  "deal": {
+    "id": "LIVE-001",
+    "company": "Northwind Logistics",
+    "industry": "Logistics",
+    "deal_size": 85000,
+    "stage": "Evaluation",
+    "rep": "Priya Nair",
+    "stakeholders_in_room": ["Maria Torres (VP Operations)", "Jordan Lee (Director of Ops)"],
+    "competitors": [],
+    "objections": []
+  },
+  "turns": [
+    {"id":1,"type":"call","speaker":"Maria Torres (Northwind)","timestamp":"2026-09-28T10:02:00","text":"Thanks for making time again. We've been through the demo internally and the ops team is positive on the route-planning module. Walk me through what implementation would look like.","expected_signals":{"objections":[],"competitors":[],"note":"Neutral. Score stays roughly flat."}},
+    {"id":2,"type":"call","speaker":"Maria Torres (Northwind)","timestamp":"2026-09-28T10:06:00","text":"Just so you know, we're also having a conversation with Acme. Their pitch sounds fairly similar to yours.","expected_signals":{"objections":[],"competitors":["Acme"],"note":"Small drop (about 3-8 pts)."}},
+    {"id":3,"type":"call","speaker":"Maria Torres (Northwind)","timestamp":"2026-09-28T10:11:00","text":"There's something else. Finance just announced a freeze on new vendor spend for this quarter, so I'm honestly not sure how we move forward with this.","expected_signals":{"objections":["budget_freeze"],"competitors":[],"note":"Big drop (about 15 pts). Pattern: budget_freeze at Evaluation, lost 6 of 10. Draft follow-up triggered."}},
+    {"id":4,"type":"call","speaker":"Priya Nair (Rep)","timestamp":"2026-09-28T10:14:00","text":"That's completely fair, Maria. Let me pull together a couple of options that work within a freeze and send them over right after this call.","expected_signals":{"objections":[],"competitors":[],"note":"Neutral. Drafted follow-up remains visible on screen."}},
+    {"id":5,"type":"call","speaker":"Maria Torres (Northwind)","timestamp":"2026-09-28T10:19:00","text":"One more thing. Jordan, who has been driving this internally, might be moving over to the customer success team next quarter. Nothing is confirmed yet.","expected_signals":{"objections":["champion_left"],"competitors":[],"note":"Further drop (about 10-13 pts). Pattern: champion_left, lost 5 of 6. Hedged mention, so lower weight."}},
+    {"id":6,"type":"email","speaker":"Maria Torres (Northwind)","timestamp":"2026-09-29T09:30:00","text":"Thanks for sending this over. The option to start smaller is something I can take to Dana in finance. Can we set up 30 minutes on Thursday to walk her through it?","expected_signals":{"objections":[],"competitors":[],"recovery":["positive_reply_after_followup"],"note":"Partial recovery (about +10-15 pts). History: 4 of 5 budget_freeze deals with a positive reply to the follow-up were won."}}
+  ],
+  "expected_trajectory_approx": {
+    "_comment": "Rough values with the provided scoring_config.json. Exact numbers depend on engine implementation; assert on direction and rough magnitude, not exact values.",
+    "after_turn": {"0":0.62,"1":0.62,"2":0.57,"3":0.42,"4":0.42,"5":0.30,"6":0.42}
+  }
+}

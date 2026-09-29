@@ -1,0 +1,5 @@
+[
+  {"id":"R1","name":"Marcus Chen","title":"Senior Account Executive","tenure":"6 years","is_new":false,"badge":null,"deals_worked":["D001","D003","D005","D007","D009","D011","D013","D015","D017","D019","D021","D023","D025","D027","D030"]},
+  {"id":"R2","name":"Elena Rossi","title":"Senior Account Executive","tenure":"5 years","is_new":false,"badge":null,"deals_worked":["D002","D004","D006","D008","D010","D012","D014","D016","D018","D020","D022","D024","D026","D028","D029"]},
+  {"id":"R3","name":"Priya Nair","title":"Account Executive","tenure":"Week 3","is_new":true,"badge":"Week 3 - has never worked these deals","deals_worked":[]}
+]

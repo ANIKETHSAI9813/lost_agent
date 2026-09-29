@@ -1,0 +1,8 @@
+# LLM provider: Groq (SPEC 7 model line superseded, see DECISIONS.md D12).
+# Optional: with no GROQ_API_KEY the app is fully template-driven and the
+# demo still passes SPEC 12.
+#
+# Verified against console.groq.com/docs/quickstart:
+#   from groq import Groq
+#   Groq(api_key=...).chat.completions.create(messages=[...], model=...)
+groq

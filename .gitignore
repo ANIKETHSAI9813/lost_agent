@@ -1,0 +1,30 @@
+# Secrets - never commit. Both filenames are covered because this project
+# ships the template as `env` (no dot) and dotenv conventionally uses `.env`.
+.env
+env
+*.env
+!.env.example
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Build / release artifacts
+dist/
+build/
+*.log
+.coverage
+htmlcov/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini

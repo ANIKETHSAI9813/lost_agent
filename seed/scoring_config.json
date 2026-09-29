@@ -1,0 +1,23 @@
+{
+  "_comment": "Tunable parameters for the belief-based scoring engine. Log-odds update: delta = scale * ln(loss_ratio/(1-loss_ratio)) * signal_weight * confidence, applied against the win probability. Recovery signals use the win ratio and add instead of subtract.",
+  "prior_win_probability": 0.62,
+  "logit_scale": 1.5,
+  "confidence_full_at_n": 10,
+  "min_deals_for_fatal_pattern": 4,
+  "fatal_loss_ratio": 0.6,
+  "signal_weights": {
+    "objection:budget_freeze": 1.0,
+    "objection:champion_left": 0.35,
+    "objection:no_exec_sponsor": 0.8,
+    "objection:competitor_pricing": 0.6,
+    "objection:security_review_stall": 0.6,
+    "objection:legal_redlines": 0.5,
+    "objection:timing_slip": 0.5,
+    "objection:integration_concern": 0.5,
+    "competitor": 0.12,
+    "recovery:positive_reply_after_followup": 0.5
+  },
+  "objection_taxonomy": ["budget_freeze","competitor_pricing","champion_left","security_review_stall","no_exec_sponsor","legal_redlines","timing_slip","integration_concern"],
+  "stages": ["Discovery","Evaluation","Proposal","Negotiation"],
+  "clamp": {"min": 0.03, "max": 0.97}
+}

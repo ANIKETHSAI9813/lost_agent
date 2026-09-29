@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lost-Deal Autopsy Agent</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Ccircle cx='14' cy='14' r='6' fill='none' stroke='white' stroke-width='2.5'/%3E%3Cpath d='M19 19l6 6' stroke='white' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#f5f6fa; --surface:#fff; --soft:#f0f2f8; --line:#e5e7ef; --ink:#101828; --muted:#667085;
+  --brand:#4f46e5; --brand-ink:#3730a3; --brand-soft:#eef0ff;
+  --good:#15803d; --good-soft:#e7f6ec; --warn:#b45309; --warn-soft:#fff3dc; --bad:#b91c1c; --bad-soft:#fdeaea;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 4px 14px rgba(16,24,40,.05);
+}
+html[data-theme="light"]{
+  --bg:#f5f6fa; --surface:#fff; --soft:#f0f2f8; --line:#e5e7ef; --ink:#101828; --muted:#667085;
+  --brand:#4f46e5; --brand-ink:#3730a3; --brand-soft:#eef0ff;
+  --good:#15803d; --good-soft:#e7f6ec; --warn:#b45309; --warn-soft:#fff3dc; --bad:#b91c1c; --bad-soft:#fdeaea;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 4px 14px rgba(16,24,40,.05);
+}
+html[data-theme="dark"]{
+  --bg:#0d1017; --surface:#151a24; --soft:#1c2230; --line:#283045; --ink:#eef1f8; --muted:#98a2b8;
+  --brand:#818cf8; --brand-ink:#c7d2fe; --brand-soft:#232a4d;
+  --good:#4ade80; --good-soft:#12301f; --warn:#fbbf24; --warn-soft:#33270d; --bad:#f87171; --bad-soft:#381717;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}
+/* auto dark: only when the user hasn't picked a theme manually */
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme]){
+    --bg:#0d1017; --surface:#151a24; --soft:#1c2230; --line:#283045; --ink:#eef1f8; --muted:#98a2b8;
+    --brand:#818cf8; --brand-ink:#c7d2fe; --brand-soft:#232a4d;
+    --good:#4ade80; --good-soft:#12301f; --warn:#fbbf24; --warn-soft:#33270d; --bad:#f87171; --bad-soft:#381717;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);line-height:1.5;
+  font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+h1,h2,h3,p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:8px}
+.wrap{max-width:1240px;margin:0 auto;padding:20px 20px 60px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)}
+.muted{color:var(--muted)} .small{font-size:13px} .tiny{font-size:12px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.grow{flex:1}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);
+  background:var(--surface);padding:9px 15px;border-radius:10px;font-weight:600;font-size:14px;transition:.15s}
+.btn:hover:not(:disabled){background:var(--soft)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.primary:hover:not(:disabled){filter:brightness(1.08);background:var(--brand)}
+.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}
+.btn.sm{padding:6px 11px;font-size:13px}
+
+/* nav */
+.nav{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--surface) 88%,transparent);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.nav .in{max-width:1240px;margin:0 auto;padding:11px 20px;display:flex;align-items:center;gap:14px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em}
+.logo svg{width:32px;height:32px}
+.logo small{display:block;font-weight:500;color:var(--muted);font-size:12px;letter-spacing:0}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:6px 12px;border-radius:999px;font-size:13px;font-weight:600;
+  border:1px solid var(--line);background:var(--surface)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--good);display:inline-block}
+.chip.bad .dot{background:var(--bad)} .chip.warn .dot{background:var(--warn)}
+.chip.bad{color:var(--bad);border-color:var(--bad);background:var(--bad-soft)}
+.pulse{animation:pulse 1.2s ease 2}
+@keyframes pulse{50%{box-shadow:0 0 0 6px color-mix(in srgb,var(--brand) 25%,transparent)}}
+
+/* menus */
+.menu-wrap{position:relative}
+.pop{position:absolute;right:0;top:calc(100% + 8px);min-width:290px;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;box-shadow:0 12px 32px rgba(16,24,40,.18);padding:8px;z-index:30;display:none}
+.pop.open{display:block}
+.pop .item{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:none;border:0;padding:9px 10px;border-radius:10px}
+.pop .item:hover{background:var(--soft)}
+.pop .item[aria-checked=true]{background:var(--brand-soft)}
+.pop h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:6px 10px}
+.kv{display:flex;justify-content:space-between;gap:16px;padding:7px 10px;font-size:13px;border-top:1px solid var(--line)}
+.kv:first-of-type{border-top:0}
+.kv b{font-weight:600;text-align:right}
+.av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;color:#fff;font-weight:700;font-size:13px;flex:none}
+.av.sq{border-radius:10px} .av.lg{width:46px;height:46px;font-size:16px}
+
+/* hero */
+.hero{margin:18px 0;padding:22px 24px;border-radius:16px;color:#fff;
+  background:linear-gradient(120deg,#4338ca,#6d5df6 55%,#8b7bff);display:flex;gap:20px;align-items:center;flex-wrap:wrap}
+.hero h2{font-size:21px;letter-spacing:-.02em;margin-bottom:6px}
+.hero p{opacity:.92;max-width:680px}
+.hero .btn{background:#fff;color:#3730a3;border-color:#fff}
+.hero.gone{display:none}
+
+/* deal header */
+.deal{padding:18px 20px;margin:18px 0}
+.deal h1{font-size:22px;letter-spacing:-.02em}
+.stepper{display:flex;gap:6px;flex:1;min-width:260px;max-width:520px;margin-left:auto}
+.step{flex:1;text-align:center;font-size:12px;font-weight:600;color:var(--muted)}
+.step i{display:block;height:6px;border-radius:99px;background:var(--line);margin-bottom:6px}
+.step.done i{background:var(--brand);opacity:.45} .step.now i{background:var(--brand)} .step.now{color:var(--brand-ink)}
+.people{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.person{display:flex;align-items:center;gap:9px;padding:6px 12px 6px 6px;border:1px solid var(--line);border-radius:999px;background:var(--soft)}
+.person .av{width:28px;height:28px;font-size:11px}
+
+/* layout */
+.cols{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,1fr);gap:18px;align-items:start}
+.stack{display:grid;gap:18px}
+.stick{position:sticky;top:76px}
+@media(max-width:980px){.cols{grid-template-columns:1fr}.stick{position:static}.stepper{margin-left:0;max-width:none}}
+
+/* conversation */
+.head{padding:15px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.head h2{font-size:15px}
+.pill{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;background:var(--soft);color:var(--muted)}
+.pill.won{background:var(--good-soft);color:var(--good)} .pill.lost{background:var(--bad-soft);color:var(--bad)}
+.pill.brand{background:var(--brand-soft);color:var(--brand-ink)}
+.convo{padding:18px;display:grid;gap:14px;min-height:220px;align-content:start}
+.empty{color:var(--muted);text-align:center;padding:36px 12px}
+.empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
+.msg{display:flex;gap:11px;max-width:92%;animation:rise .35s ease both}
+.msg.rep{margin-left:auto;flex-direction:row-reverse}
+.bubble{border-radius:16px;padding:11px 15px;background:var(--soft)}
+.msg.rep .bubble{background:var(--brand);color:#fff}
+.meta{font-size:12px;color:var(--muted);margin-bottom:3px;display:flex;gap:8px;align-items:center}
+.msg.rep .meta{justify-content:flex-end}
+.mail{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px 15px}
+.mail .tag{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:4px}
+.insights{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.ins{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;animation:rise .4s ease both;animation-delay:.25s}
+.ins.bad{background:var(--bad-soft);color:var(--bad)} .ins.warn{background:var(--warn-soft);color:var(--warn)}
+.ins.good{background:var(--good-soft);color:var(--good)} .ins.calm{background:var(--soft);color:var(--muted)}
+.typing{display:inline-flex;gap:4px;padding:14px 16px}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.controls{padding:14px 18px;border-top:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--soft);border-radius:0 0 16px 16px}
+details.try{padding:0 18px 16px}
+details.try summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--brand-ink);padding:12px 0}
+details.try textarea{width:100%;min-height:64px;border:1px solid var(--line);border-radius:10px;padding:10px;background:var(--surface);resize:vertical}
+
+/* coach */
+.score{padding:20px;text-align:center}
+.ring{position:relative;width:170px;height:170px;margin:4px auto 10px}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .t{fill:none;stroke:var(--soft);stroke-width:12}
+.ring .v{fill:none;stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset .8s cubic-bezier(.2,.8,.2,1),stroke .4s}
+.ring .n{position:absolute;inset:0;display:grid;place-content:center}
+.ring .n b{font-size:40px;letter-spacing:-.03em;line-height:1}
+.ring .n span{font-size:12px;color:var(--muted);margin-top:4px}
+.verdict{font-weight:700;font-size:16px}
+.verdict.good{color:var(--good)} .verdict.warn{color:var(--warn)} .verdict.bad{color:var(--bad)}
+.delta{display:inline-block;margin-left:8px;font-size:13px;font-weight:700;padding:2px 9px;border-radius:999px}
+.delta.down{background:var(--bad-soft);color:var(--bad)} .delta.up{background:var(--good-soft);color:var(--good)}
+.why{margin:16px 0 0;text-align:left;padding:13px 15px;border-radius:12px;background:var(--soft);border-left:4px solid var(--muted);font-size:14px}
+.why.down{border-color:var(--bad);animation:flashbad 1s ease} .why.up{border-color:var(--good);animation:flashgood 1s ease}
+.why .k{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin-bottom:3px}
+@keyframes flashbad{from{background:var(--bad-soft)}} @keyframes flashgood{from{background:var(--good-soft)}}
+.spark{width:100%;height:96px;margin-top:14px}
+.section{padding:18px}
+.section h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:12px}
+.feed{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.feed li{display:flex;gap:12px;align-items:flex-start}
+.feed .bul{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.feed .bul.down{background:var(--bad-soft);color:var(--bad)} .feed .bul.up{background:var(--good-soft);color:var(--good)}
+.pat{padding:13px 14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px}
+.pat:last-child{margin-bottom:0}
+.dots{display:flex;gap:5px;margin:10px 0 8px;flex-wrap:wrap}
+.dots i{width:16px;height:16px;border-radius:50%;background:var(--bad);opacity:.9}
+.dots i.w{background:var(--good)}
+.dots i.n{background:var(--line)}
+.deal-card{padding:12px 0;border-top:1px solid var(--line);display:flex;gap:12px}
+.deal-card:first-of-type{border-top:0;padding-top:0}
+.deal-card p{margin-top:4px}
+
+/* draft */
+.draft{padding:0;overflow:hidden;border-color:var(--brand);animation:slide .55s cubic-bezier(.2,.8,.2,1) both}
+.draft.static{animation:none}
+@keyframes slide{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:none}}
+.draft .top{padding:14px 18px;background:var(--brand-soft);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.draft .top h2{font-size:15px;color:var(--brand-ink)}
+.mailhead{padding:12px 18px;border-bottom:1px solid var(--line);font-size:14px;display:grid;gap:4px}
+.mailhead span{color:var(--muted);display:inline-block;width:64px}
+.body{padding:16px 18px;white-space:pre-wrap;font-size:15px;line-height:1.65}
+.based{padding:12px 18px 16px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.src{font-size:12px;padding:5px 10px;border-radius:10px;background:var(--soft)}
+.tip{border-color:var(--warn);background:var(--warn-soft);padding:16px 18px;animation:slide .55s ease both}
+.tip h2{font-size:15px;margin-bottom:6px;color:var(--warn)}
+.recap{padding:18px;border-color:var(--good);background:var(--good-soft);animation:rise .4s ease both}
+.recap h2{font-size:16px;margin-bottom:6px}
+
+/* dialog + toast */
+dialog{border:0;border-radius:18px;padding:0;width:min(560px,94vw);background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.35)}
+dialog::backdrop{background:rgba(16,24,40,.5)}
+dialog form{padding:22px;display:grid;gap:14px}
+dialog h2{font-size:19px;letter-spacing:-.01em}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:520px){.f2{grid-template-columns:1fr}}
+label.f{display:grid;gap:5px;font-size:13px;font-weight:600}
+label.f input,label.f select,label.f textarea{border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--surface);font-weight:400}
+#toast{position:fixed;left:50%;bottom:22px;transform:translate(-50%,30px);opacity:0;pointer-events:none;
+  background:var(--ink);color:var(--bg);padding:12px 16px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.3);
+  transition:.3s;z-index:60;display:flex;gap:14px;align-items:center;max-width:92vw}
+#toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#toast button{background:transparent;border:1px solid currentColor;border-radius:8px;padding:4px 10px;font-weight:700}
+.banner{margin:14px 0;padding:12px 16px;border-radius:12px;background:var(--bad-soft);color:var(--bad);font-weight:600;display:none}
+.banner.show{display:block}
+footer{margin-top:30px;text-align:center;color:var(--muted);font-size:12px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg label{margin:0}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:inline-block;padding:8px 16px;font-weight:600;cursor:pointer;transition:.15s}
+.seg .bonus{display:none}
+.seg input:checked + span{background:var(--brand);color:#fff}
+.lastLose{color:var(--bad);font-weight:600}
+.rate{font-variant-numeric:tabular-nums;font-weight:700}
+
+/* chat with us (D45) */
+#themeBtn{font-weight:600}
+.chatfab{position:fixed;right:20px;bottom:20px;z-index:70;display:inline-flex;align-items:center;gap:8px;
+  padding:13px 20px;border-radius:999px;border:1px solid var(--brand);background:var(--brand);color:#fff;
+  font-weight:700;font-size:14px;box-shadow:0 12px 34px rgba(16,24,40,.28);transition:.15s}
+.chatfab:hover{filter:brightness(1.08)}
+.chatbox{position:fixed;right:20px;bottom:82px;z-index:70;width:min(370px,94vw);max-height:min(560px,72vh);
+  display:flex;flex-direction:column;overflow:hidden;border-radius:18px}
+.chatbox[hidden]{display:none}
+.chathead{display:flex;align-items:center;gap:8px;padding:13px 15px;border-bottom:1px solid var(--line);
+  background:var(--brand-soft)}
+.chathead b{font-size:15px}
+.chatlog{padding:13px;display:flex;flex-direction:column;gap:10px;overflow-y:auto;flex:1;min-height:220px;align-content:start}
+.chatmsg{max-width:88%;padding:9px 12px;border-radius:13px;font-size:14px;line-height:1.5;white-space:pre-wrap;animation:rise .3s ease both}
+.chatmsg.user{margin-left:auto;background:var(--brand);color:#fff;border-bottom-right-radius:4px}
+.chatmsg.bot{background:var(--soft);border-bottom-left-radius:4px}
+.chatmsg.err{background:var(--bad-soft);color:var(--bad)}
+.chatform{display:flex;gap:8px;padding:10px;border-top:1px solid var(--line);background:var(--soft)}
+.chatform input{flex:1;border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--surface);min-width:0}
+</style>
+</head>
+<body>
+<noscript><p style="padding:24px">This demo needs JavaScript.</p></noscript>
+
+<header class="nav"><div class="in">
+  <div class="logo">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#4f46e5"/><circle cx="14" cy="14" r="6" fill="none" stroke="#fff" stroke-width="2.5"/><path d="M19 19l6 6" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>
+    <div>Lost-Deal Autopsy<small>Coaching from every deal your team has lost</small></div>
+  </div>
+  <div class="grow"></div>
+  <div class="menu-wrap">
+    <button class="chip" id="intBtn" aria-haspopup="true" aria-expanded="false" style="font-weight:600">Integrations</button>
+    <div class="pop" id="intPop" role="dialog" aria-label="Integrations">
+      <h3>Integrations — what exists today</h3>
+      <div class="kv"><span>Salesforce</span><b class="pill">Planned</b></div>
+      <div class="kv"><span>HubSpot</span><b class="pill">Planned</b></div>
+      <div class="kv"><span>Gong</span><b class="pill">Planned</b></div>
+      <div class="kv"><span>Zoom</span><b class="pill">Planned</b></div>
+      <div class="kv" style="margin-top:10px"><span>Available today</span><b>Transcript import (paste or JSON)</b></div>
+      <div class="kv"><span>REST API</span><b>POST /api/events</b></div>
+      <p class="muted tiny" style="margin-top:8px">Roadmap: CRM sync of closed deals into memory · live call streaming · outcome-calibrated scoring.</p>
+    </div>
+  </div>
+  <div class="menu-wrap">
+    <button class="chip" id="memChip" aria-haspopup="true" aria-expanded="false"><span class="dot"></span><span id="memText">Loading team memory…</span></button>
+    <div class="pop" id="memPop" role="dialog" aria-label="Memory status"></div>
+  </div>
+  <button class="btn sm" id="themeBtn" title="Toggle light / dark theme" aria-label="Toggle light / dark theme">Dark mode</button>
+  <button class="btn sm" id="logBtn">+ Log a lost deal</button>
+  <div class="menu-wrap">
+    <button class="btn" id="repBtn" aria-haspopup="true" aria-expanded="false" style="padding:5px 12px 5px 6px;gap:10px"></button>
+    <div class="pop" id="repPop" role="menu" aria-label="Choose rep"></div>
+  </div>
+</div></header>
+
+<main class="wrap">
+  <div class="banner" id="banner"></div>
+
+  <section class="hero" id="hero">
+    <div class="grow">
+      <h2 id="heroTitle">Coach every rep with the deals your team already lost.</h2>
+      <p id="heroText">Loading…</p>
+    </div>
+    <button class="btn" id="heroPlay">▶ Play the call</button>
+  </section>
+
+  <section class="card deal" id="dealCard" aria-label="Current deal"></section>
+
+  <div class="cols">
+    <div class="stack">
+      <section class="card">
+        <div class="head"><h2>Live call</h2><span class="pill brand" id="callPill">Not started</span></div>
+        <div class="convo" id="convo"><div class="empty"><b>The call hasn't started</b>Press “Play next message” and the agent will listen along.</div></div>
+        <div class="controls">
+          <button class="btn primary" id="nextBtn">Play next message</button>
+          <button class="btn" id="autoBtn">Auto-play</button>
+          <button class="btn ghost" id="resetBtn">Start over</button>
+          <button class="btn ghost" id="closeBtn" hidden>🗂 Close this deal</button>
+        </div>
+        <details class="try">
+          <summary>Try your own line</summary>
+          <div class="stack" style="gap:10px">
+            <div class="row">
+              <label class="f"><span>Who said it?</span>
+                <select id="ownWho"><option value="prospect">The prospect</option><option value="rep">The rep</option></select></label>
+              <label class="f"><span>Where?</span>
+                <select id="ownType"><option value="call">On the call</option><option value="email">In an email</option><option value="crm_note">CRM note</option></select></label>
+            </div>
+            <textarea id="ownText" placeholder="e.g. Our security team wants another review before we can sign."></textarea>
+            <div><button class="btn" id="ownBtn">Analyze this</button></div>
+          </div>
+        </details>
+        <div class="try" style="max-width:720px">
+          <div class="head" style="margin-bottom:6px"><h3>Import a real call</h3><span class="pill">paste or JSON</span></div>
+          <p class="muted small">Paste a transcript — one “Speaker: line” per message, or the <code>{"turns":[…]}</code> JSON a Gong/Zoom export maps to. The agent scores it turn by turn, exactly like the demo.</p>
+          <textarea id="tripSrc" rows="4" spellcheck="false"
+            placeholder="Maria White (Prospect): our security team wants another security review&#10;Maria White (Prospect): and Vantage quoted us a lower price&#10;[10:14] Maria White (Prospect): we will have an answer next week"></textarea>
+          <div class="row" style="margin-top:10px">
+            <button class="btn" id="tripSample">Load sample</button>
+            <button class="btn primary" id="tripGo">Analyze</button>
+          </div>
+        </div>
+      </section>
+      <div id="draftSlot" class="stack"></div>
+      <div id="autopsySlot" class="stack"></div>
+      <div id="recapSlot"></div>
+    </div>
+
+    <aside class="stack stick" aria-label="Coaching">
+      <section class="card score" aria-live="polite">
+        <div class="ring"><svg viewBox="0 0 140 140" aria-hidden="true"><circle class="t" cx="70" cy="70" r="58"/><circle class="v" id="ringArc" cx="70" cy="70" r="58"/></svg>
+          <div class="n"><b id="ringNum">—</b><span>chance of winning</span></div></div>
+        <div><span class="verdict" id="verdict">Waiting for the call</span><span class="delta" id="deltaPill" hidden></span></div>
+        <div class="why" id="why"><span class="k">Why it moved</span><span id="whyText">Nothing yet. Once the prospect says something risky, the agent will explain the change here in plain words.</span></div>
+        <svg class="spark" id="spark" viewBox="0 0 300 96" preserveAspectRatio="none" aria-hidden="true"></svg>
+      </section>
+
+      <section class="card section"><h2>What changed the score</h2>
+        <ul class="feed" id="feed"><li class="muted small">No changes yet.</li></ul></section>
+
+      <section class="card section"><h2>What your team’s history says</h2>
+        <div id="patterns"><p class="muted small">When the agent spots a risk, you’ll see how similar deals ended.</p></div></section>
+
+      <section class="card section"><h2>Learn from similar deals</h2>
+        <div id="recalls"><p class="muted small">Relevant wins and losses from the whole team appear here — including deals you never worked.</p></div></section>
+    </aside>
+  </div>
+  <footer>Sample data is synthetic and built to show clear patterns. Team memory powered by Hindsight.</footer>
+</main>
+
+<dialog id="logDlg">
+  <form id="logForm" method="dialog">
+    <div><h2>Log a past deal</h2><p class="muted small">It goes into the team’s shared memory straight away. Replay the call to see the numbers move.</p></div>
+    <div class="f2">
+      <label class="f"><span>Outcome</span>
+        <select name="outcome" id="logOutcome"><option value="lost">Lost</option><option value="won">Won</option></select></label>
+      <label class="f"><span>Winning move (won only)</span>
+        <select name="winning_strategy" id="logStratSel" disabled></select></label>
+    </div>
+    <label class="f"><span>Company</span><input name="company" required placeholder="e.g. Summit Freight"></label>
+    <div class="f2">
+      <label class="f"><span>Deal size ($)</span><input name="deal_size" type="number" min="1000" step="1000" value="60000" required></label>
+      <label class="f"><span>Closed on</span><input name="closed_date" type="date" required></label>
+    </div>
+    <label class="f"><span>What went wrong?</span><select name="objection" id="objSel"></select>
+      <span class="muted tiny" id="objHint" style="font-weight:400"></span></label>
+    <div class="f2">
+      <label class="f"><span>Stage it slipped at</span><select name="stage" id="stageSel"></select></label>
+      <label class="f"><span>Competitor involved</span><select name="competitor" id="compSel"></select></label>
+    </div>
+    <div class="f2">
+      <label class="f"><span>Deal owner</span><select name="rep" id="ownerSel"></select></label>
+      <label class="f"><span>Industry</span><input name="industry" list="indList" value="Logistics"><datalist id="indList"></datalist></label>
+    </div>
+    <label class="f"><span>What happened? (optional)</span><textarea name="summary" rows="2" placeholder="One or two lines your teammates would find useful."></textarea></label>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" type="button" id="logCancel">Cancel</button>
+      <button class="btn primary" type="submit" id="logSubmit">Add to team memory</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="closeDlg">
+  <form id="closeForm" method="dialog">
+    <div><h2>Close this deal</h2><p class="muted small">The agent re-reads the whole conversation, then this runs joins the team’s shared memory and the patterns update right away.</p></div>
+    <div class="f2">
+      <label class="f"><span>How did it end?</span>
+        <span class="seg" role="radiogroup" aria-label="Outcome">
+          <label><input type="radio" name="closeOutcome" value="lost" checked><span>Lost</span></label>
+          <label><input type="radio" name="closeOutcome" value="won"><span>Won</span></label>
+        </span></label>
+      <label class="f"><span>Winning move (won only)</span>
+        <select name="closeStrategy" id="closeStratSel" disabled></select></label>
+    </div>
+    <label class="f"><span>Note (optional)</span><textarea name="closeNote" rows="2" maxlength="500" placeholder="What would help the next rep facing this?"></textarea></label>
+    <div class="row" style="justify-content:flex-end">
+      <button class="btn" type="button" id="closeCancel">Cancel</button>
+      <button class="btn primary" type="submit" id="closeSubmit">Save to memory</button>
+    </div>
+  </form>
+</dialog>
+<div id="toast" role="status"></div>
+<button class="chatfab" id="chatBtn" aria-haspopup="dialog" aria-expanded="false">Chat with us</button>
+<div class="card chatbox" id="chatBox" role="dialog" aria-label="Chat with us" hidden>
+  <div class="chathead">
+    <b>Chat with us</b>
+    <span class="muted small">answers from your team’s shared memory</span>
+    <span class="grow"></span>
+    <button class="btn ghost sm" id="chatClose" aria-label="Close chat">✕</button>
+  </div>
+  <div class="chatlog" id="chatLog">
+    <div class="chatmsg bot">Hi! Ask me about a pattern, the score, the draft, or any deal already in team memory.</div>
+  </div>
+  <form class="chatform" id="chatForm">
+    <input id="chatInput" maxlength="500" autocomplete="off" placeholder="e.g. what happened to budget-freeze deals?" aria-label="Your question" required>
+    <button class="btn primary" id="chatSend" type="submit">Send</button>
+  </form>
+</div>
+
+<script>
+"use strict";
+/* ---------- tiny helpers ---------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const money = (n) => "$" + Number(n).toLocaleString("en-US");
+const moneyK = (n) => n >= 1000 ? "$" + Math.round(n / 1000) + "K" : "$" + n;
+const initials = (n) => String(n).replace(/\(.*?\)/g, "").trim().split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+const hue = (s) => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+const avatar = (name, cls = "") => `<span class="av ${cls}" style="background:hsl(${hue(name)} 48% 42%)" aria-hidden="true">${esc(initials(name))}</span>`;
+const person = (s) => { const m = /^(.*?)\s*\((.*)\)$/.exec(s); return m ? { name: m[1].trim(), role: m[2].trim() } : { name: s, role: "" }; };
+const monthYear = (d) => { const x = new Date(d + "T00:00:00"); return isNaN(x) ? d : x.toLocaleDateString("en-US", { month: "short", year: "numeric" }); };
+function when(ts, withDay) {
+  const d = new Date(ts); if (isNaN(d)) return "";
+  const t = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return withDay ? d.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " · " + t : t;
+}
+
+/* ---------- plain-English vocabulary ---------- */
+const OBJ = {
+  budget_freeze: ["Budget freeze", "Finance has paused new vendor spend"],
+  competitor_pricing: ["Competitor pricing", "A rival is winning on price"],
+  champion_left: ["Champion leaving", "Your internal advocate is moving on"],
+  security_review_stall: ["Security review stall", "Security sign-off is holding things up"],
+  no_exec_sponsor: ["No executive sponsor", "No senior person is backing the deal"],
+  legal_redlines: ["Legal redlines", "Contract terms are stuck in review"],
+  timing_slip: ["Timing slip", "The buyer keeps pushing the date"],
+  integration_concern: ["Integration concern", "They doubt it will fit their systems"],
+};
+const STRAT = {
+  phased_rollout: "Phased rollout", cost_of_delay: "Cost of delay", pilot_first: "Pilot first", cfo_one_pager: "CFO one-pager",
+  multi_thread_handoff: "Multi-thread the account", exec_briefing: "Executive briefing",
+  preempt_security_docs: "Send security docs early", joint_legal_call: "Joint legal call",
+};
+const objName = (t) => (OBJ[t] ? OBJ[t][0] : String(t).replace(/_/g, " "));
+const stratName = (t) => STRAT[t] || String(t).replace(/_/g, " ");
+function describeKey(key, scope) {
+  const k = String(key);
+  if (k.startsWith("recovery")) return { title: "A positive reply after your follow-up", ctx: "on budget-freeze deals", win: true };
+  const stage = (/@([A-Za-z ]+)$/.exec(k) || [])[1];
+  const ctx = scope === "all_stages" ? "across all stages" : stage ? "during " + stage : "";
+  if (k.includes("+")) {
+    const comp = (/competitor:([^+]+)/.exec(k) || [])[1], ob = (/objection:([^@]+)/.exec(k) || [])[1];
+    return { title: `${comp} in the deal, ${objName(ob).toLowerCase()}`, ctx };
+  }
+  if (k.startsWith("competitor:")) return { title: `${k.slice(11)} is competing`, ctx };
+  if (k.startsWith("objection:")) return { title: objName(k.slice(10).replace(/@.*/, "")), ctx };
+  return { title: k, ctx };
+}
+
+/* ---------- state ---------- */
+const S = { script: null, reps: [], live: null, deals: {}, stats: null, health: null,
+  patterns: {}, recalls: [], busy: false, auto: false, close: null };
+const STAGES = ["Discovery", "Evaluation", "Proposal", "Negotiation"];
+
+/* One scoreboard per tab: a sessionStorage id (survives F5, fresh per new
+   tab) is sent on every request so two browser windows over the same shared
+   memory never mutate each other's run. Phase 6. */
+const SESSION_ID = (() => {
+  let s = sessionStorage.getItem("la.sid");
+  if (!s) { s = "b" + Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem("la.sid", s); }
+  return s;
+})();
+
+async function api(path, opts) {
+  const headers = Object.assign({}, opts && opts.headers, { "X-Session-Id": SESSION_ID });
+  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  if (!res.ok) throw new Error(`${res.status} ${path}`);
+  return res.json();
+}
+const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+
+function toast(msg, actionLabel, action) {
+  const t = $("#toast");
+  t.innerHTML = `<span>${esc(msg)}</span>` + (actionLabel ? `<button id="toastAct">${esc(actionLabel)}</button>` : "");
+  t.classList.add("show");
+  if (actionLabel) $("#toastAct").onclick = () => { t.classList.remove("show"); action(); };
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), actionLabel ? 9000 : 4200);
+}
+function banner(msg) { const b = $("#banner"); b.textContent = msg || ""; b.classList.toggle("show", !!msg); }
+
+/* ---------- top bar ---------- */
+function activeRep() { return S.reps.find(r => r.name === (S.live && S.live.rep)) || S.reps[0]; }
+function renderRep() {
+  const r = activeRep(); if (!r) return;
+  $("#repBtn").innerHTML = `${avatar(r.name)}<span style="text-align:left;line-height:1.2"><b style="display:block;font-size:14px">${esc(r.name)}</b><span class="muted tiny">${esc(r.title)} · ${esc(r.tenure)}</span></span>`;
+  $("#repPop").innerHTML = `<h3>Who’s on the call?</h3>` + S.reps.map(x =>
+    `<button class="item" role="menuitemradio" aria-checked="${x.name === r.name}" data-rep="${esc(x.name)}">${avatar(x.name)}
+      <span><b style="display:block">${esc(x.name)}${x.is_new ? ' <span class="pill brand">New</span>' : ""}</b>
+      <span class="muted tiny">${esc(x.title)} · ${esc(x.tenure)} · ${x.deals_worked.length} deals worked</span></span></button>`).join("") +
+    `<div class="kv"><span class="muted">Everyone sees the same warnings.</span></div>`;
+  $("#repPop").querySelectorAll("[data-rep]").forEach(b => b.onclick = async () => {
+    closePops();
+    try { await post("/api/rep/select", { name: b.dataset.rep }); S.live = await api("/api/deals/live"); renderAll(); refreshTexts();
+      toast(`${b.dataset.rep} is now on the call. The warnings stay the same — the memory belongs to the team.`); }
+    catch (e) { toast("Couldn’t switch rep."); }
+  });
+}
+function memoryNote() {
+  const st = S.stats; if (!st) return { tone: "warn", short: "Memory status unknown", detail: "" };
+  const added = Object.values(S.deals).filter(d => d.source === "live_added").length;
+  let data = "Matches the reference data", tone = "";
+  if (st.integrity_status === "COUNT MISMATCH") {
+    if (added > 0) data = `Includes ${added} deal${added > 1 ? "s" : ""} you added`;
+    else { data = "Counts differ from the reference data"; tone = "bad"; }
+  } else if (st.integrity_status === "UNKNOWN") { data = "Not checked yet"; tone = "warn"; }
+  if (st.fallback) tone = "bad";
+  return { tone, data };
+}
+function renderMem() {
+  const st = S.stats; if (!st) return;
+  const n = memoryNote(), chip = $("#memChip");
+  chip.className = "chip " + n.tone;
+  $("#memText").textContent = st.fallback ? "Local memory — Hindsight not active" : `Team memory · ${st.deals} deals`;
+  const llm = S.health && S.health.llm;
+  $("#memPop").innerHTML = `<h3>How this is powered</h3>
+    <div class="kv"><span>Memory</span><b>${st.fallback ? "Local fallback" : "Hindsight (live)"}</b></div>
+    ${st.fallback && st.fallback_reason ? `<div class="kv"><span>Why</span><b>${esc(st.fallback_reason)}</b></div>` : ""}
+    <div class="kv"><span>Shared bank</span><b>${esc(st.bank_id)}</b></div>
+    <div class="kv"><span>Deals remembered</span><b>${st.deals} (${st.lost} lost, ${st.won} won)</b></div>
+    <div class="kv"><span>Data check</span><b>${esc(n.data)}</b></div>
+    <div class="kv"><span>Wording</span><b>${llm && llm.configured ? "AI-polished (" + esc(llm.model) + ")" : "Built from templates"}</b></div>
+    <div class="kv"><span class="muted">Every number on screen is counted from memory, never made up by the AI.</span></div>
+    <div id="memInsight" class="insight" aria-live="polite"><span class="muted small">Looking at team memory…</span></div>`;
+  loadInsight("budget_freeze");
+}
+function loadInsight(objection) {
+  const box = $("#memInsight"); if (!box) return;
+  api(`/api/memory/insight?objection=${encodeURIComponent(objection)}`).then(ins => {
+    if (!ins.pattern.present) { box.innerHTML = `<span class="muted small">No team history for that objection — we never invent one.</span>`; return; }
+    const p = ins.pattern, tone = p.fatal ? "bad" : p.loss_ratio >= 0.45 ? "warn" : "good";
+    const backings = ins.won_backings.map(b => `${esc(objName(b.strategy))} (${esc(b.rep)}, ${esc(b.id)})`).join(", ") || "none yet";
+    const sem = ins.semantic.available
+      ? `<div class="kv" style="margin-top:8px"><span>Semantic recall</span><b>${esc(ins.semantic.deals.join(", "))}</b></div>`
+      : "";
+    const narr = ins.semantic.narrative ? `<p class="muted small" style="margin-top:6px">${esc(ins.semantic.narrative)}</p>` : "";
+    box.innerHTML = `<h4 style="margin:12px 0 6px">Team memory on ${esc(objName(ins.objection))}</h4>
+      <div class="kv"><span class="ins ${tone}">${p.fatal ? "⚠ Fatal pattern" : p.loss_ratio >= 0.45 ? "Needs attention" : "Manageable pattern"}</span>
+        <b>${p.lost} of ${p.total} ${esc(ins.objection)} deals lost</b></div>
+      <div class="kv"><span>Won with</span><b>${esc(backings)}</b></div>
+      ${sem}${narr}
+      <p class="muted tiny" style="margin-top:6px">Counted from shared memory${ins.backend.fallback ? " — local fallback active" : ` — ${esc(ins.backend.name)} bank ${esc(ins.backend.bank_id)}`}</p>`;
+  }).catch(() => { box.innerHTML = `<span class="muted small">Memory insight unavailable right now.</span>`; });
+}
+function closePops() { document.querySelectorAll(".pop").forEach(p => p.classList.remove("open")); ["memChip", "repBtn", "intBtn"].forEach(i => $("#" + i).setAttribute("aria-expanded", "false")); }
+function wirePop(btn, pop) {
+  $(btn).onclick = (e) => { e.stopPropagation(); const open = !$(pop).classList.contains("open"); closePops();
+    if (open) { $(pop).classList.add("open"); $(btn).setAttribute("aria-expanded", "true"); } };
+}
+document.addEventListener("click", (e) => { if (!e.target.closest(".menu-wrap")) closePops(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePops(); });
+
+/* ---------- deal header + hero ---------- */
+function renderDeal() {
+  const d = S.live.deal, at = STAGES.indexOf(d.stage);
+  $("#dealCard").innerHTML = `<div class="row" style="gap:14px">${avatar(d.company, "sq lg")}
+    <div><h1>${esc(d.company)}</h1><div class="muted small">${esc(d.industry)} · ${money(d.deal_size)} deal · Owned by ${esc(d.rep)}</div></div>
+    <div class="stepper" aria-label="Deal stage">${STAGES.map((s, i) => `<div class="step ${i < at ? "done" : i === at ? "now" : ""}"><i></i>${esc(s)}</div>`).join("")}</div></div>
+    <div class="people">${d.stakeholders_in_room.map(p => { const x = person(p);
+      return `<span class="person">${avatar(x.name)}<span><b class="small">${esc(x.name)}</b>${x.role ? `<span class="muted tiny" style="display:block;line-height:1.1">${esc(x.role)}</span>` : ""}</span></span>`; }).join("")}</div>`;
+}
+function renderHero() {
+  const r = activeRep(), st = S.stats;
+  if (!r || !st) return;
+  $("#hero").classList.toggle("gone", S.live.turn > 0);
+  const first = r.name.split(" ")[0];
+  $("#heroTitle").textContent = r.is_new ? `${first} is in week 3. Her team has lost ${st.lost} deals she never saw.` : `${first} has ${r.deals_worked.length} deals of history. The team has ${st.lost} lost deals in shared memory.`;
+  $("#heroText").textContent = `Play the ${S.script.turns.length}-message call with ${S.live.deal.company}. The agent listens, checks every risk against what actually happened before, and tells ${first} what to do next.`;
+}
+
+/* ---------- conversation ---------- */
+function msgHtml(turn, chips) {
+  const rep = /\(Rep\)/.test(turn.speaker), p = person(turn.speaker), email = turn.type === "email";
+  const body = email
+    ? `<div class="mail"><div class="tag">Email reply</div>${esc(turn.text)}</div>`
+    : `<div class="bubble">${esc(turn.text)}</div>`;
+  return `<div class="msg ${rep ? "rep" : ""}">${avatar(p.name)}<div>
+    <div class="meta"><b>${esc(p.name)}</b><span>${esc(p.role && !rep ? p.role : "")}</span><span>${esc(when(turn.timestamp, email))}</span></div>
+    ${body}<div class="insights">${chips || ""}</div></div></div>`;
+}
+function chipsFor(sig, delta) {
+  const c = [];
+  (sig.objections || []).forEach(o => c.push(`<span class="ins bad">⚠ ${esc(objName(o))} spotted</span>`));
+  (sig.competitors || []).forEach(o => c.push(`<span class="ins warn">${esc(o)} is in the mix</span>`));
+  (sig.recovery || []).forEach(() => c.push(`<span class="ins good">✓ Positive reply after your follow-up</span>`));
+  if (!c.length && delta === 0) c.push(`<span class="ins calm">Nothing risky here</span>`);
+  return c.join("");
+}
+function renderConvoFromState() {
+  const n = S.live.turn, box = $("#convo");
+  if (!n) { box.innerHTML = `<div class="empty"><b>The call hasn't started</b>Press “Play next message” and the agent will listen along.</div>`; }
+  else box.innerHTML = S.script.turns.slice(0, n).map(t => msgHtml(t)).join("");
+  updateCallPill();
+}
+function updateCallPill() {
+  const n = S.live.turn, tot = S.script.turns.length;
+  $("#callPill").textContent = n === 0 ? "Not started" : n >= tot ? "Call finished" : `Message ${n} of ${tot}`;
+  $("#nextBtn").disabled = S.busy || n >= tot;
+  $("#nextBtn").textContent = n === 0 ? "Play first message" : "Play next message";
+  const cb = $("#closeBtn");
+  cb.hidden = !(n > 0 && !S.live.closed);
+  cb.textContent = S.live.closed ? "Closed — replay to run again" : n >= tot ? "🗂 Close this deal & teach the team" : "🗂 Close this deal";
+}
+
+/* ---------- coach panel ---------- */
+const CIRC = 2 * Math.PI * 58;
+function verdictOf(score, delta) {
+  if (delta > 0.5 && score < 0.6) return ["Recovering", "warn"];
+  return score >= 0.6 ? ["On track", "good"] : score >= 0.45 ? ["Needs attention", "warn"] : ["At risk", "bad"];
+}
+function renderScore(score, delta, reason) {
+  const [label, tone] = verdictOf(score, delta);
+  const arc = $("#ringArc");
+  arc.style.strokeDasharray = CIRC; arc.style.strokeDashoffset = CIRC * (1 - score);
+  arc.style.stroke = `var(--${tone})`;
+  $("#ringNum").textContent = Math.round(score * 100) + "%";
+  const v = $("#verdict"); v.textContent = label; v.className = "verdict " + tone;
+  const dp = $("#deltaPill");
+  if (Math.abs(delta) >= 0.05) { dp.hidden = false; dp.className = "delta " + (delta < 0 ? "down" : "up");
+    dp.textContent = (delta < 0 ? "▼ " : "▲ +") + Math.abs(delta).toFixed(0) + " pts"; } else dp.hidden = true;
+  const w = $("#why"); w.className = "why " + (delta < -0.05 ? "down" : delta > 0.05 ? "up" : "");
+  if (reason) $("#whyText").textContent = reason;
+}
+function renderSpark() {
+  const h = S.live.history, svg = $("#spark");
+  if (!h.length) { svg.innerHTML = ""; return; }
+  const series = [h[0].score_before, ...h.map(e => e.score_after)];
+  const X = (i) => 14 + i * (272 / Math.max(1, series.length - 1)), Y = (v) => 82 - v * 70;
+  const pts = series.map((v, i) => `${X(i).toFixed(1)},${Y(v).toFixed(1)}`);
+  const dots = series.map((v, i) => {
+    const up = i > 0 && v > series[i - 1], down = i > 0 && v < series[i - 1], last = i === series.length - 1;
+    const col = i === 0 ? "var(--muted)" : down ? "var(--bad)" : up ? "var(--good)" : "var(--muted)";
+    return `<circle cx="${X(i)}" cy="${Y(v)}" r="${last ? 5 : 3.5}" fill="${col}"/>` +
+      (last ? `<text x="${X(i)}" y="${Y(v) - 9}" text-anchor="end" font-size="11" font-weight="700" fill="currentColor">${Math.round(v * 100)}%</text>` : "");
+  }).join("");
+  svg.innerHTML = `<line x1="0" x2="300" y1="${Y(.5)}" y2="${Y(.5)}" stroke="var(--line)" stroke-dasharray="3 4"/>
+    <polygon points="14,82 ${pts.join(" ")} ${X(series.length - 1)},82" fill="var(--brand)" opacity=".08"/>
+    <polyline points="${pts.join(" ")}" fill="none" stroke="var(--brand)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>${dots}`;
+}
+function renderFeed() {
+  const h = S.live.history, ul = $("#feed");
+  if (!h.length) { ul.innerHTML = `<li class="muted small">No changes yet.</li>`; return; }
+  ul.innerHTML = h.map(e => {
+    const d = describeKey(e.signal_key), down = e.delta_pts < 0;
+    return `<li><span class="bul ${down ? "down" : "up"}">${down ? "▼" : "▲"}</span><div class="grow">
+      <b>${esc(d.title)}</b> <span class="muted small">${esc(d.ctx)}</span>
+      <div class="small muted">${esc(e.pattern_text)}</div></div>
+      <b class="small" style="color:var(--${down ? "bad" : "good"});white-space:nowrap">${down ? "−" : "+"}${Math.abs(e.delta_pts).toFixed(0)} pts</b></li>`;
+  }).join("");
+}
+function renderPatterns() {
+  const list = Object.values(S.patterns), box = $("#patterns");
+  if (!list.length) return;
+  box.innerHTML = list.map(p => {
+    const d = describeKey(p.key, p.stage_scope), n = p.total, big = p.win ? p.won : p.lost;
+    const dots = Array.from({ length: n }, (_, i) => i < big ? (p.win ? "w" : "") : (p.win ? "n" : "w")).map(c => `<i class="${c}"></i>`).join("");
+    const line = d.win ? `<b>${p.won} of ${n}</b> deals like this were won` : `<b>${p.lost} of ${n}</b> similar deals were lost`;
+    return `<div class="pat"><b>${esc(d.title)}</b> <span class="muted small">${esc(d.ctx)}</span>
+      <div class="dots" role="img" aria-label="${big} of ${n}">${dots}</div><div class="small">${line}</div>
+      <div class="tiny muted" style="margin-top:2px">${p.total >= 4 ? "Strong evidence" : "Limited evidence — treated with caution"}</div></div>`;
+  }).join("");
+}
+function renderRecalls() {
+  const box = $("#recalls"); if (!S.recalls.length) return;
+  const me = activeRep();
+  box.innerHTML = S.recalls.map(d => {
+    const full = S.deals[d.id] || {}, story = full.summary, won = d.outcome === "won", ws = full.winning_response;
+    return `<div class="deal-card">${avatar(d.company, "sq")}<div class="grow">
+      <div class="row" style="gap:8px"><b>${esc(d.company)}</b><span class="pill ${d.outcome}">${won ? "Won" : "Lost"}</span>
+        ${ws ? `<span class="pill brand">${esc(stratName(ws.strategy))}</span>` : ""}</div>
+      <div class="tiny muted">${esc(objName(d.objection || ""))} · ${esc(d.objection_stage || "")} · ${d.deal_size ? moneyK(d.deal_size) : ""} · ${d.closed_date ? monthYear(d.closed_date) : ""}</div>
+      ${story ? `<p class="small">${esc(story)}</p>` : ""}
+      <p class="tiny muted">${d.worked_by_you ? "You worked this one." : `From ${esc(d.rep)}’s deals${me && me.is_new ? " — new to you" : ""}.`}</p></div></div>`;
+  }).join("");
+}
+
+/* ---------- follow-up draft ---------- */
+function renderDraft(fresh) {
+  const { draft, secondary_tip: tip } = S.live, slot = $("#draftSlot"), cls = fresh ? "" : " static";
+  let h = "";
+  const cite = (c) => { const co = (S.deals[c.id] || {}).company;
+    return `<span class="src"><b>${esc(stratName(c.strategy))}</b> · ${co ? esc(co) + " · " : ""}won by ${esc(c.rep)}</span>`; };
+  if (draft) {
+    const d = S.live.deal, p = person(d.stakeholders_in_room[0] || "");
+    h += `<section class="card draft${cls}" aria-label="Suggested follow-up"><div class="top">
+        <h2>✉ Suggested follow-up — ready to send</h2><span class="grow"></span>
+        <button class="btn sm" id="copyBtn">Copy email</button>
+        <button class="btn sm primary" id="sentBtn" ${draft.marked_sent ? "disabled" : ""}>${draft.marked_sent ? "✓ Marked as sent" : "Mark as sent"}</button></div>
+      <div class="mailhead"><div><span>To</span>${esc(p.name)}${p.role ? ", " + esc(p.role) : ""}, ${esc(d.company)}</div><div><span>Subject</span><b>${esc(draft.subject)}</b></div></div>
+      <div class="body">${esc(draft.body)}</div>
+      <div class="based"><span class="small muted">Adapted from what worked for:</span>${draft.based_on.map(cite).join("")}
+        <span class="tiny muted" style="margin-left:auto">${draft.generated_by === "llm" || draft.generated_by === "groq" ? "AI-polished wording" : "Built from your team’s winning replies"}</span></div></section>`;
+  }
+  if (tip) h += `<section class="card tip" aria-label="Heads-up"><h2>💡 Also worth doing: ${esc(tip.title)}</h2><p class="small">${esc(tip.body)}</p>
+      <div class="row" style="margin-top:10px"><span class="tiny muted">Based on</span>${tip.based_on.map(cite).join("")}</div></section>`;
+  slot.innerHTML = h;
+  const c = $("#copyBtn"); if (c) c.onclick = () => copyText(draft.body);
+  const s = $("#sentBtn"); if (s && !draft.marked_sent) s.onclick = async () => {
+    try { await post("/api/followup/sent"); S.live = await api("/api/deals/live"); renderDraft(false);
+      toast("Marked as sent. The agent will now watch for a positive reply."); } catch (e) { toast("Couldn’t mark it as sent."); } };
+}
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); toast("Email copied to your clipboard."); }
+  catch (e) { const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); toast("Email copied to your clipboard."); } catch (x) { toast("Copy was blocked by the browser."); } ta.remove(); }
+}
+function renderRecap() {
+  const slot = $("#recapSlot"), h = S.live.history;
+  if (S.live.turn < S.script.turns.length || !h.length) { slot.innerHTML = ""; return; }
+  const r = activeRep(), first = r.name.split(" ")[0], start = h[0].score_before, end = S.live.score;
+  const risks = h.filter(e => e.delta_pts < 0).length, gains = h.filter(e => e.delta_pts > 0).length;
+  const helps = (S.live.draft ? 1 : 0) + (S.live.secondary_tip ? 1 : 0);
+  slot.innerHTML = `<section class="card recap"><h2>Call recap</h2><p>${esc(first)} started at <b>${Math.round(start * 100)}%</b> and finished at <b>${Math.round(end * 100)}%</b>.
+    The agent caught <b>${risks}</b> risk${risks === 1 ? "" : "s"} your team has seen before, wrote <b>${helps}</b> piece${helps === 1 ? "" : "s"} of follow-up help${gains ? ` and noticed <b>${gains}</b> good sign${gains === 1 ? "" : "s"} afterwards` : ""}.
+    ${r.is_new ? `None of it came from deals ${esc(first)} had worked — it all came from the team’s shared memory.` : ""}</p>
+    <div class="row" style="margin-top:12px"><button class="btn" id="againBtn">Replay the call</button><span class="small muted">Log a lost deal first, then replay, to watch the numbers change.</span></div></section>`;
+  $("#againBtn").onclick = async () => { await resetAll(); startAuto(); };
+}
+
+/* ---------- close the deal: autopsy card ---------- */
+function renderAutopsy() {
+  const slot = $("#autopsySlot");
+  if (!S.close) { slot.innerHTML = ""; return; }
+  const c = S.close, a = c.autopsy, lost = c.outcome === "lost";
+  const before = c.pattern_before, after = c.pattern_after;
+  const fmt = (p) => p && p.total ? `${p.won} won, ${p.lost} lost (of ${p.total})` : "no pattern yet";
+  const bNum = before && before.total ? `${before.lost}/${before.total}` : "—";
+  const aNum = after && after.total ? `${after.lost}/${after.total}` : "—";
+  const moves = (a.what_worked_before || []).slice(0, 3)
+    .map(w => `${esc(stratName(w.strategy))} · ${esc(w.rep)}`).join("<br>") || "none on that objection";
+  const drivers = (a.timeline || []).filter(e => Math.abs(e.delta_pts) >= 1)
+    .slice(0, 4).map(e => `<li><span class="tiny muted">${e.delta_pts > 0 ? "▲ +" : "▼ "}${Math.abs(e.delta_pts).toFixed(0)} pts</span> ${esc(e.reason || "")}</li>`).join("");
+  const wonLine = c.winning_response
+    ? `<div class="kv"><span>Winning move</span><b>${esc(stratName(c.winning_response.strategy))}</b></div>
+       <div class="row" style="margin-top:8px"><span class="tiny muted">What worked verbatim from memory: “${esc(c.winning_response.text)}”</span></div>`
+    : `<div class="kv"><span>Winning move</span><b>None — this one stayed lost</b></div>`;
+  slot.innerHTML = `<section class="card recap ${lost ? "" : "win"}" aria-label="Deal closed">
+    <h2>Closed ${esc(S.live && S.live.deal ? S.live.deal.company : "this deal")} — <span class="${lost ? "lastLose" : "ins good"}">${lost ? "Lost" : "Won"}</span></h2>
+    <p class="small">${esc(objName(c.objection))} at ${esc(c.stage)}. Pattern on this objection moved from <b>${esc(fmt(before))}</b> to <b>${esc(fmt(after))}</b> — the next run sees <b class="rate">${esc(aNum)}</b> instead of <b class="rate">${esc(bNum)}</b>.</p>
+    ${wonLine}
+    <div class="kv" style="margin-top:10px"><span>Autopsy lesson</span><b>${esc(a.lesson || "")}</b></div>
+    <div class="kv"><span>What won this before</span><b>${moves}</b></div>
+    ${drivers ? `<details class="try" style="margin-top:10px"><summary>What actually moved the score (${drivers.split("<li>").length - 1} signals)</summary><ul class="feed" style="list-style:none;padding-left:0">${drivers}</ul></details>` : ""}
+    <div class="row" style="margin-top:12px"><button class="btn" id="replayCloseBtn">Replay and watch the pattern fire</button>
+      <span class="small muted">If you close it lost again, the pattern keeps growing.</span></div></section>`;
+  $("#replayCloseBtn").onclick = async () => { await resetAll(); startAuto(); };
+}
+
+async function winningStrategies(objection) {
+  try {
+    const ins = await api(`/api/memory/insight?objection=${encodeURIComponent(objection)}`);
+    const seen = new Set();
+    return (ins.won_backings || []).filter(b => { if (seen.has(b.strategy)) return false; seen.add(b.strategy); return true; })
+      .map(b => ({ strategy: b.strategy, rep: b.rep }));
+  } catch (e) { return []; }
+}
+function fillStratSel(sel, items) {
+  sel.innerHTML = items.map(i => `<option value="${esc(i.strategy)}">${esc(stratName(i.strategy))} — earned by ${esc(i.rep)}</option>`).join("") || `<option value="">No known win yet</option>`;
+  sel.disabled = items.length === 0;
+}
+
+function openClose() {
+  const dlg = $("#closeDlg");
+  const objection = (S.live.draft && S.live.draft.objection) || "budget_freeze";
+  winningStrategies(objection).then(items => fillStratSel($("#closeStratSel"), items));
+  dlg.showModal();
+}
+function syncCloseOutcome() {
+  const won = document.querySelector('input[name="closeOutcome"]:checked').value === "won";
+  $("#closeStratSel").disabled = !won;
+  $("#closeNote").placeholder = won ? "What would help the next rep facing this?" : "Anything that would help the next rep?";
+}
+$("#closeBtn").onclick = openClose;
+$("#closeCancel").onclick = () => $("#closeDlg").close();
+document.querySelectorAll('input[name="closeOutcome"]').forEach(r => r.onchange = syncCloseOutcome);
+$("#closeForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const won = document.querySelector('input[name="closeOutcome"]:checked').value === "won";
+  const title = $("#closeSubmit"), company = S.live.deal.company;
+  title.disabled = true;
+  const body = { outcome: won ? "won" : "lost", stage: S.live.deal.stage, note: $("#closeNote").value.trim() };
+  if (won) body.winning_strategy = $("#closeStratSel").value;
+  try {
+    const c = await post("/api/deals/close", body);
+    S.close = c;
+    $("#closeDlg").close(); e.target.reset(); syncCloseOutcome();
+    S.live = await api("/api/deals/live");
+    await loadDeals(); S.stats = await api("/api/memory/stats"); renderMem();
+    renderAutopsy(); renderRecap(); updateCallPill();
+    $("#memChip").classList.add("pulse"); setTimeout(() => $("#memChip").classList.remove("pulse"), 2600);
+    toast(`Saved ${company} as ${won ? "won" : "lost"}. Memory now holds ${c.deals} deals.`, "Replay & see it", async () => { await resetAll(); startAuto(); });
+  } catch (err) { toast("Couldn’t close the deal: " + err.message); }
+  finally { title.disabled = false; }
+};
+
+/* ---------- rendering glue ---------- */
+function renderAll() {
+  renderRep(); renderDeal(); renderHero(); renderConvoFromState(); renderMem();
+  const h = S.live.history, last = h[h.length - 1];
+  renderScore(S.live.score, last && S.live.turn ? last.delta_pts : 0, last ? last.pattern_text : "");
+  renderSpark(); renderFeed(); renderPatterns(); renderRecalls(); renderDraft(false); renderRecap(); renderAutopsy();
+}
+function refreshTexts() { renderHero(); renderRecalls(); }
+
+/* ---------- playing the call ---------- */
+function finishedNow() { return S.live.turn >= S.script.turns.length; }
+async function handleResult(turnLike, result) {
+  const box = $("#convo");
+  if (box.querySelector(".empty")) box.innerHTML = "";
+  const before = S.live.turn;
+  const typing = document.createElement("div"); typing.className = "msg";
+  const p = person(turnLike.speaker), rep = /\(Rep\)/.test(turnLike.speaker);
+  typing.classList.toggle("rep", rep);
+  typing.innerHTML = `${avatar(p.name)}<div class="bubble typing"><i></i><i></i><i></i></div>`;
+  box.appendChild(typing); typing.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  const [res] = await Promise.all([result(), sleep(rep ? 500 : 900)]);
+  typing.remove();
+  if (res === null) return null;
+  box.insertAdjacentHTML("beforeend", msgHtml(turnLike, chipsFor(res.signals || {}, res.delta)));
+  box.lastElementChild.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  await applyResult(turnLike, res);
+  return res;
+}
+async function applyResult(turnLike, res) {
+  S.live = await api("/api/deals/live");
+  (res.patterns || []).forEach(x => { S.patterns[x.key] = { ...x, win: String(x.key).startsWith("recovery") }; });
+  if ((res.recalled_deals || []).length) S.recalls = res.recalled_deals;
+  $("#hero").classList.add("gone");
+  renderScore(res.score, res.delta, res.reason); renderSpark(); renderFeed(); renderPatterns(); renderRecalls();
+  const newDraft = !!S.live.draft && !$("#draftSlot .draft");
+  renderDraft(true); updateCallPill(); renderRecap();
+  if (newDraft) setTimeout(() => $("#draftSlot").scrollIntoView({ block: "nearest", behavior: "smooth" }), 250);
+}
+async function playNext() {
+  if (S.busy || finishedNow()) return;
+  S.busy = true; $("#nextBtn").disabled = true;
+  try {
+    const turn = S.script.turns[S.live.turn];
+    await handleResult(turn, () => post("/api/demo/step"));
+  } catch (e) { banner("Couldn’t reach the server. Is it still running? (" + e.message + ")"); stopAuto(); }
+  finally { S.busy = false; updateCallPill(); }
+}
+function startAuto() {
+  if (S.auto) return; S.auto = true; $("#autoBtn").textContent = "Pause"; $("#autoBtn").classList.add("primary");
+  (async () => { while (S.auto && !finishedNow()) { await playNext(); if (!S.auto) break; await sleep(1700); } stopAuto(); })();
+}
+function stopAuto() { S.auto = false; $("#autoBtn").textContent = "Auto-play"; $("#autoBtn").classList.remove("primary"); }
+async function resetAll() {
+  stopAuto(); while (S.busy) await sleep(60);
+  await post("/api/demo/reset");
+  S.patterns = {}; S.recalls = [];
+  $("#patterns").innerHTML = `<p class="muted small">When the agent spots a risk, you’ll see how similar deals ended.</p>`;
+  $("#recalls").innerHTML = `<p class="muted small">Relevant wins and losses from the whole team appear here — including deals you never worked.</p>`;
+  $("#whyText").textContent = "Nothing yet. Once the prospect says something risky, the agent will explain the change here in plain words.";
+  S.close = null;
+  S.live = await api("/api/deals/live");
+  renderAll(); $("#verdict").textContent = "Ready when you are"; $("#verdict").className = "verdict"; $("#ringNum").textContent = Math.round(S.live.score * 100) + "%";
+}
+
+/* ---------- try your own line ---------- */
+$("#ownBtn").onclick = async () => {
+  const text = $("#ownText").value.trim(); if (!text) { toast("Type something the prospect or rep might say."); return; }
+  const rep = $("#ownWho").value === "rep", d = S.live.deal, p = person(d.stakeholders_in_room[0] || "Prospect");
+  const speaker = rep ? `${d.rep} (Rep)` : `${p.name} (${d.company.split(" ")[0]})`;
+  const turn = { speaker, type: $("#ownType").value, text, timestamp: new Date().toISOString().slice(0, 19) };
+  S.busy = true;
+  try {
+    await handleResult(turn, () => post("/api/events", { type: turn.type, speaker, text, timestamp: turn.timestamp }));
+    $("#ownText").value = "";
+  } catch (e) { toast("That didn’t go through: " + e.message); }
+  finally { S.busy = false; updateCallPill(); }
+};
+
+/* ---------- import a real call (Phase 7 / defect K) ---------- */
+const SAMPLE_TRANSCRIPT = `Maria White (Prospect): Hey, thanks for the walkthrough — it looked good.
+Maria White (Prospect): Before anything moves forward, our security team wants another security review — that has been sitting with them for two weeks.
+[10:14] Maria White (Prospect): Also worth being straight with you: Vantage quoted us a lower price for something very similar.
+Priya Nair (Rep): That's fair, Maria. Let me share the security docs we used at two customers this quarter and come back with a cost plan.
+Maria White (Prospect): If you can get the security packet to us by Friday, I can make time to walk through it with our team.`;
+
+async function runTranscript(turns) {
+  if (S.busy) return;
+  stopAuto(); S.busy = true;
+  const box = $("#convo");
+  if (box.querySelector(".empty")) box.innerHTML = "";
+  try {
+    for (const { input, result: res } of turns) {
+      const typing = document.createElement("div"); typing.className = "msg";
+      const p = person(input.speaker), rep = /\(Rep\)/.test(input.speaker);
+      typing.classList.toggle("rep", rep);
+      typing.innerHTML = `${avatar(p.name)}<div class="bubble typing"><i></i><i></i><i></i></div>`;
+      box.appendChild(typing); typing.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      await sleep(rep ? 500 : 900);
+      typing.remove();
+      box.insertAdjacentHTML("beforeend", msgHtml(input, chipsFor(res.signals || {}, res.delta)));
+      box.lastElementChild.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      await applyResult(input, res);
+      await sleep(900);
+    }
+    toast(`Transcript analysed — ${turns.length} turn${turns.length === 1 ? "" : "s"} scored against team memory.`);
+  } finally { S.busy = false; updateCallPill(); }
+}
+$("#tripSample").onclick = () => { $("#tripSrc").value = SAMPLE_TRANSCRIPT; };
+$("#tripGo").onclick = async () => {
+  const txt = $("#tripSrc").value; if (!txt.trim()) { toast("Paste a transcript first, or load the sample."); return; }
+  if (S.busy) return;
+  S.busy = true; stopAuto();
+  try {
+    const res = await fetch("/api/transcript", {
+      method: "POST", headers: { "Content-Type": "text/plain", "X-Session-Id": SESSION_ID }, body: txt,
+    });
+    let data = null; try { data = await res.json(); } catch (e) { /* non-JSON error body */ }
+    if (!res.ok) { toast("Import failed: " + (data && data.detail ? data.detail : res.status)); return; }
+    await runTranscript(data.turns || []);
+  } catch (e) { banner("Transcript import failed: " + e.message); }
+  finally { S.busy = false; updateCallPill(); }
+};
+
+/* ---------- log a lost deal ---------- */
+function openLog() {
+  const dlg = $("#logDlg");
+  $("#objSel").innerHTML = Object.keys(OBJ).map(k => `<option value="${k}">${esc(OBJ[k][0])}</option>`).join("");
+  $("#objHint").textContent = OBJ.budget_freeze[1];
+  $("#stageSel").innerHTML = STAGES.map(s => `<option ${s === S.live.deal.stage ? "selected" : ""}>${s}</option>`).join("");
+  const comps = [...new Set(["Acme", "Vantage", ...Object.values(S.deals).flatMap(d => d.competitors || [])])];
+  $("#compSel").innerHTML = `<option value="">None</option>` + comps.map(c => `<option>${esc(c)}</option>`).join("");
+  $("#ownerSel").innerHTML = S.reps.map(r => `<option ${r.name === S.live.rep ? "selected" : ""}>${esc(r.name)}</option>`).join("");
+  $("#indList").innerHTML = [...new Set(Object.values(S.deals).map(d => d.industry))].map(i => `<option value="${esc(i)}">`).join("");
+  $("#logForm").elements.closed_date.value = new Date().toISOString().slice(0, 10);
+  syncLogOutcome();
+  winningStrategies("budget_freeze").then(items => fillStratSel($("#logStratSel"), items));
+  dlg.showModal();
+}
+function syncLogOutcome() {
+  const won = $("#logOutcome").value === "won";
+  $("#logStratSel").disabled = !won;
+  $("#logSubmit").textContent = won ? "Add the win to memory" : "Add to team memory";
+}
+$("#objSel").onchange = (e) => { $("#objHint").textContent = (OBJ[e.target.value] || [])[1] || "";
+  winningStrategies(e.target.value).then(items => fillStratSel($("#logStratSel"), items)); };
+$("#logOutcome").onchange = syncLogOutcome;
+$("#logBtn").onclick = openLog;
+$("#logCancel").onclick = () => $("#logDlg").close();
+$("#logForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = e.target.elements, btn = $("#logSubmit");
+  const won = f.outcome.value === "won";
+  const used = new Set(Object.keys(S.deals)); let n = 1; while (used.has("L" + String(n).padStart(3, "0"))) n++;
+  const id = "L" + String(n).padStart(3, "0");
+  const body = { id, company: f.company.value.trim(), industry: f.industry.value.trim() || "Logistics", deal_size: Number(f.deal_size.value),
+    outcome: won ? "won" : "lost", objection_stage: f.stage.value, stage_lost_at: won ? null : f.stage.value,
+    closed_date: f.closed_date.value, rep: f.rep.value, winning_strategy: won ? f.winning_strategy.value : null,
+    competitors: f.competitor.value ? [f.competitor.value] : [], objections: [f.objection.value], stakeholders_in_room: [],
+    summary: f.summary.value.trim() || "Logged from the deal coach.", recovery_signals: [] };
+  btn.disabled = true;
+  try {
+    const r = await post("/api/retain", body);
+    $("#logDlg").close(); e.target.reset();
+    await loadDeals(); S.stats = await api("/api/memory/stats"); renderMem();
+    $("#memChip").classList.add("pulse"); setTimeout(() => $("#memChip").classList.remove("pulse"), 2600);
+    toast(`Added ${body.company}. Team memory now holds ${r.deals} deals.`, "Replay the call", async () => { await resetAll(); startAuto(); });
+  } catch (err) { toast("Couldn’t save that deal: " + err.message); }
+  finally { btn.disabled = false; }
+};
+
+/* ---------- boot ---------- */
+async function loadDeals() {
+  try { const list = await api("/api/deals"); S.deals = Object.fromEntries(list.map(d => [d.id, d])); }
+  catch (e) { /* optional endpoint: cards just show less detail without it */ }
+}
+async function init() {
+  try {
+    [S.script, S.reps, S.live, S.stats] = await Promise.all([api("/api/demo/script"), api("/api/reps"), api("/api/deals/live"), api("/api/memory/stats")]);
+    await Promise.all([loadDeals(), api("/api/health").then(h => { S.health = h; }).catch(() => {})]);
+    renderAll();
+    if (S.live.turn === 0) { $("#verdict").textContent = "Ready when you are"; $("#ringNum").textContent = Math.round(S.live.score * 100) + "%"; }
+  } catch (e) { banner("Couldn’t reach the server. Start it with `uvicorn app.main:app` and refresh. (" + e.message + ")"); }
+}
+/* ---------- theme toggle (D45): light default + auto dark + manual override ---------- */
+const THEME_KEY = "la.theme";
+function effTheme() {
+  const t = document.documentElement.getAttribute("data-theme");
+  if (t === "light" || t === "dark") return t;
+  return (window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+}
+function renderThemeBtn() {
+  $("#themeBtn").textContent = effTheme() === "dark" ? "Light mode" : "Dark mode";
+}
+function themeInit() {
+  const saved = localStorage.getItem(THEME_KEY);
+  if (saved === "light" || saved === "dark") document.documentElement.setAttribute("data-theme", saved);
+  renderThemeBtn();
+}
+$("#themeBtn").onclick = () => {
+  const next = effTheme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* private mode: applies for this tab */ }
+  renderThemeBtn();
+};
+try {
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (!localStorage.getItem(THEME_KEY)) renderThemeBtn();
+  });
+} catch (e) { /* older browsers: manual toggle still works */ }
+themeInit();
+
+/* ---------- chat with us (D45): data-grounded /api/chat ---------- */
+function chatAdd(role, text) {
+  const node = document.createElement("div");
+  node.className = "chatmsg " + role;
+  node.textContent = text;
+  $("#chatLog").appendChild(node);
+  $("#chatLog").scrollTop = $("#chatLog").scrollHeight;
+}
+$("#chatBtn").onclick = () => {
+  const box = $("#chatBox");
+  box.hidden = !box.hidden;
+  $("#chatBtn").setAttribute("aria-expanded", !box.hidden);
+  if (!box.hidden) $("#chatInput").focus();
+};
+$("#chatClose").onclick = () => { $("#chatBox").hidden = true; $("#chatBtn").setAttribute("aria-expanded", "false"); };
+$("#chatForm").onsubmit = async (e) => {
+  e.preventDefault();
+  const input = $("#chatInput"); const msg = input.value.trim();
+  if (!msg) return;
+  input.value = ""; input.disabled = true; $("#chatSend").disabled = true;
+  chatAdd("user", msg);
+  try {
+    const r = await post("/api/chat", { message: msg });
+    chatAdd("bot", r.reply);
+  } catch (err) {
+    chatAdd("err", "Couldn't reach the chat endpoint — is the server still running? (" + err.message + ")");
+  } finally { input.disabled = false; $("#chatSend").disabled = false; input.focus(); }
+};
+
+wirePop("#memChip", "#memPop"); wirePop("#repBtn", "#repPop"); wirePop("#intBtn", "#intPop");
+$("#nextBtn").onclick = playNext;
+$("#heroPlay").onclick = () => { startAuto(); };
+$("#autoBtn").onclick = () => (S.auto ? stopAuto() : startAuto());
+$("#resetBtn").onclick = () => resetAll().catch(() => banner("Couldn’t reset."));
+init();
+</script>
+</body>
+</html>
